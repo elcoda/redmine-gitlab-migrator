@@ -91,7 +91,7 @@ def convert_notes(redmine_issue_journals, redmine_user_index, gitlab_user_index,
             yield (data, meta)
 
 
-def relations_to_string(relations, children, parent_id, issue_id):
+def relations_to_string(relations, children, parent_id, issue_id, gitlab_project_refers_url):
     """ Convert redmine formal relations to some denormalized string
 
     That's the way gitlab does relations, by "mentioning".
@@ -106,14 +106,23 @@ def relations_to_string(relations, children, parent_id, issue_id):
             other_issue_id = i['issue_to_id']
         else:
             other_issue_id = i['issue_id']
-        l.append('  * {} #{}'.format(i['relation_type'], other_issue_id))
+        if (gitlab_project_refers_url):
+            l.append("  * {} <a href='{}/-/issues/{}'>#{}</a>".format(i['relation_type'],gitlab_project_refers_url, other_issue_id,other_issue_id))
+        else:
+            l.append("  * {} #{}".format(i['relation_type'], other_issue_id))
 
     for i in children:
         id = i['id']
-        l.append('  * {} #{}'.format('child', id))
+        if (gitlab_project_refers_url):
+            l.append("  * {} <a href='{}/-/issues/{}>#{}</a>".format('child',gitlab_project_refers_url, id, id))
+        else:
+            l.append('  * {} #{}'.format('child', id))
 
     if parent_id > 0:
-       l.append('  * {} #{}'.format('parent', parent_id))
+       if (gitlab_project_refers_url):
+            l.append("  * {} <a href='{}/-/issues/{}>#{}</a>".format('parent',gitlab_project_refers_url, parent_id, parent_id))
+       else:
+            l.append('  * {} #{}'.format('parent', parent_id))
 
     return "\n".join(l)
 
@@ -158,7 +167,7 @@ def custom_fields_to_string(custom_fields, custom_fields_include):
 # Convertor
 
 def convert_issue(redmine_api_key, redmine_issue, redmine_user_index, gitlab_user_index,
-		  gitlab_milestones_index, closed_states, custom_fields_include, textile_converter, keep_title, sudo, archive_acc):
+		  gitlab_milestones_index, closed_states, custom_fields_include, textile_converter, keep_title, sudo, archive_acc, redmine_prefix_url, gitlab_project_refers_url):
 
     issue_state = redmine_issue['status']['name']
 
@@ -179,7 +188,7 @@ def convert_issue(redmine_api_key, redmine_issue, redmine_user_index, gitlab_use
     if redmine_issue.get('parent', None):
         parent_id = redmine_issue['parent']['id']
 
-    relations_text = relations_to_string(relations, children, parent_id, redmine_issue['id'])
+    relations_text = relations_to_string(relations, children, parent_id, redmine_issue['id'],gitlab_project_refers_url)
     if len(relations_text) > 0:
         relations_text = "\n* Relations:\n" + relations_text
 
@@ -239,22 +248,44 @@ def convert_issue(redmine_api_key, redmine_issue, redmine_user_index, gitlab_use
         log.error("Can't convert Redmine issue {} to markdown formatting! Use clear text!".format(
             redmine_issue['id']
         ))
-    data = {
-        'title': title,
-        'description': '{}\n\n*(from redmine: issue id {}, created on {}{}{})*\n{}{}{}'.format(
-            converted_description,
-            redmine_issue['id'],
-            redmine_issue['created_on'][:10],
-            creator_text,
-            close_text,
-            relations_text,
-            changesets_text,
-            custom_fields_text
-        ),
-        'due_date': due_date,
-        'created_at': redmine_issue['created_on'],
-        'labels': ','.join(labels),
-    }
+
+    if (redmine_prefix_url):
+            data = {
+            'title': title,
+            'description': '{}\n\n*(from redmine: issue id {} ({}/issues/{}), created on {}{}{})*\n{}{}{}'.format(
+                converted_description,
+                redmine_issue['id'],
+                redmine_prefix_url,
+                redmine_issue['id'],
+                redmine_issue['created_on'][:10],
+                creator_text,
+                close_text,
+                relations_text,
+                changesets_text,
+                custom_fields_text
+            ),
+            'due_date': due_date,
+            'created_at': redmine_issue['created_on'],
+            'labels': ','.join(labels),
+        }
+
+    else:
+        data = {
+            'title': title,
+            'description': '{}\n\n*(from redmine: issue id {}, created on {}{}{})*\n{}{}{}'.format(
+                converted_description,
+                redmine_issue['id'],
+                redmine_issue['created_on'][:10],
+                creator_text,
+                close_text,
+                relations_text,
+                changesets_text,
+                custom_fields_text
+            ),
+            'due_date': due_date,
+            'created_at': redmine_issue['created_on'],
+            'labels': ','.join(labels),
+        }
 
     version = redmine_issue.get('fixed_version', None)
     if version:

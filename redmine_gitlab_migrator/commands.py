@@ -141,6 +141,20 @@ def parse_args():
         default=False,
         help="do not convert the history")
 
+    parser_pages.add_argument(
+        '--redmine-prefix-url',
+        action='store_true',
+        default=False,
+        help="redmine url to prefix links on migrated tasks")
+
+
+    parser_pages.add_argument(
+        '--gitlab-project-refers-url',
+        action='store_true',
+        default=False,
+        help="gitlab project url to prefix links referring other redmine taks")
+
+
     return parser.parse_args()
 
 def check(func, message, redmine_project, gitlab_project):
@@ -221,6 +235,16 @@ def perform_migrate_issues(args):
     redmine_project = RedmineProject(args.redmine_project_url, redmine)
     gitlab_project = GitlabProject(args.gitlab_project_url, gitlab)
 
+    redmine_prefix_url=''
+    if (args.redmine_prefix_url):
+        redmine_prefix_url = args.redmine_prefix_url
+
+    gitlab_project_refers_url=''
+    if (args.gitlab_project_refers_url):
+        gitlab_project_refers_url = args.gitlab_project_refers_url    
+
+
+
     gitlab_instance = gitlab_project.get_instance()
     if (args.project_members_only):
         gitlab_users_index = gitlab_project.get_members_index()
@@ -242,7 +266,7 @@ def perform_migrate_issues(args):
     issues_data = (
         convert_issue(args.redmine_key,
             i, redmine_users_index, gitlab_users_index, milestones_index, closed_states, custom_fields, textile_converter,
-            args.keep_id or args.keep_title, args.sudo, args.archive_acc)
+            args.keep_id or args.keep_title, args.sudo, args.archive_acc, redmine_prefix_url, gitlab_project_refers_url)
         for i in issues)
 
     # create issues
