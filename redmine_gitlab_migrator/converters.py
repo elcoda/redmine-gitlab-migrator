@@ -17,6 +17,9 @@ def load_user_dict(path):
 def redmine_username_to_gitlab_username(redmine_username):
     if user_dict is not None and redmine_username in user_dict:
         return user_dict[redmine_username]
+    
+    log.error('[D2D] redmine_username_to_gitlab_username: not found this redmine_username {}, we can try to remap it'.format(redmine_username))
+
     return redmine_username
 
 
@@ -25,9 +28,13 @@ def redmine_uid_to_gitlab_user(redmine_id, redmine_user_index, gitlab_user_index
 
     # Check if mapping for this user exists
     redmine_login = redmine_username_to_gitlab_username(redmine_login)
+    log.info('[D2D] redmine_uid_to_gitlab_user: first mapping type returned {}'.format(redmine_login))
+
+   
 
     if not redmine_login in gitlab_user_index:
         redmine_login = 'root'
+        log.info('[D2D] redmine_uid_to_gitlab_user: assigning root to redmine_login {}'.format(redmine_login))
     return gitlab_user_index[redmine_login]
 
 def convert_attachment(redmine_issue_attachment, redmine_api_key):
@@ -66,6 +73,7 @@ def convert_notes(redmine_issue_journals, redmine_user_index, gitlab_user_index,
             try:
                 author = redmine_uid_to_gitlab_user(
                     entry['user']['id'], redmine_user_index, gitlab_user_index)['username']
+                log.info('[D2D] convert_notes returned author {} after calling redmine_uid_to_gitlab_user'.format(author))
             except KeyError:
                 # In some cases you have anonymous notes, which do not exist in
                 # gitlab.
@@ -76,6 +84,7 @@ def convert_notes(redmine_issue_journals, redmine_user_index, gitlab_user_index,
                     log.warning(
                         'Redmine user {} is unknown, attribute note '
                         'to current admin\n'.format(entry['user']))
+
                     author = None
             if not sudo and author is not None:
                 creator_text = " by {}".format(author)
@@ -91,7 +100,7 @@ def convert_notes(redmine_issue_journals, redmine_user_index, gitlab_user_index,
             yield (data, meta)
 
 
-def relations_to_string(relations, children, parent_id, issue_id, gitlab_project_refers_url):
+def relations_to_string(relations, children, parent_id, issue_id, gitlab_project_issues_url):
     """ Convert redmine formal relations to some denormalized string
 
     That's the way gitlab does relations, by "mentioning".
@@ -106,21 +115,21 @@ def relations_to_string(relations, children, parent_id, issue_id, gitlab_project
             other_issue_id = i['issue_to_id']
         else:
             other_issue_id = i['issue_id']
-        if (gitlab_project_refers_url):
-            l.append("  * {} <a href='{}/-/issues/{}'>#{}</a>".format(i['relation_type'],gitlab_project_refers_url, other_issue_id,other_issue_id))
+        if (gitlab_project_issues_url):
+            l.append("  * {} <a href='{}/-/issues/{}'>#{}</a>".format(i['relation_type'],gitlab_project_issues_url, other_issue_id,other_issue_id))
         else:
             l.append("  * {} #{}".format(i['relation_type'], other_issue_id))
 
     for i in children:
         id = i['id']
-        if (gitlab_project_refers_url):
-            l.append("  * {} <a href='{}/-/issues/{}>#{}</a>".format('child',gitlab_project_refers_url, id, id))
+        if (gitlab_project_issues_url):
+            l.append("  * {} <a href='{}/-/issues/{}>#{}</a>".format('child',gitlab_project_issues_url, id, id))
         else:
             l.append('  * {} #{}'.format('child', id))
 
     if parent_id > 0:
-       if (gitlab_project_refers_url):
-            l.append("  * {} <a href='{}/-/issues/{}>#{}</a>".format('parent',gitlab_project_refers_url, parent_id, parent_id))
+       if (gitlab_project_issues_url):
+            l.append("  * {} <a href='{}/-/issues/{}>#{}</a>".format('parent',gitlab_project_issues_url, parent_id, parent_id))
        else:
             l.append('  * {} #{}'.format('parent', parent_id))
 
@@ -167,7 +176,7 @@ def custom_fields_to_string(custom_fields, custom_fields_include):
 # Convertor
 
 def convert_issue(redmine_api_key, redmine_issue, redmine_user_index, gitlab_user_index,
-		  gitlab_milestones_index, closed_states, custom_fields_include, textile_converter, keep_title, sudo, archive_acc, redmine_prefix_url, gitlab_project_refers_url):
+		  gitlab_milestones_index, closed_states, custom_fields_include, textile_converter, keep_title, sudo, archive_acc, title_sfx, redmine_base_url, gitlab_project_issues_url):
 
     issue_state = redmine_issue['status']['name']
 
@@ -188,7 +197,7 @@ def convert_issue(redmine_api_key, redmine_issue, redmine_user_index, gitlab_use
     if redmine_issue.get('parent', None):
         parent_id = redmine_issue['parent']['id']
 
-    relations_text = relations_to_string(relations, children, parent_id, redmine_issue['id'],gitlab_project_refers_url)
+    relations_text = relations_to_string(relations, children, parent_id, redmine_issue['id'],gitlab_project_issues_url)
     if len(relations_text) > 0:
         relations_text = "\n* Relations:\n" + relations_text
 
@@ -212,10 +221,11 @@ def convert_issue(redmine_api_key, redmine_issue, redmine_user_index, gitlab_use
 
     attachments = redmine_issue.get('attachments', [])
     due_date = redmine_issue.get('due_date', None)
+    
     if keep_title:
-        title = redmine_issue['subject']
+        title = '{}{}'.format(redmine_issue['subject'],title_sfx)
     else:
-        title = '-RM-{}-MR-{}'.format(redmine_issue['id'], redmine_issue['subject'])
+        title = '-RM-{}-MR-{} {}'.format(redmine_issue['id'], redmine_issue['subject'],title_sfx)
 
     isFromAnonymous = False
     try:
@@ -249,13 +259,13 @@ def convert_issue(redmine_api_key, redmine_issue, redmine_user_index, gitlab_use
             redmine_issue['id']
         ))
 
-    if (redmine_prefix_url):
+    if (redmine_base_url):
             data = {
             'title': title,
             'description': '{}\n\n*(from redmine: issue id {} ({}/issues/{}), created on {}{}{})*\n{}{}{}'.format(
                 converted_description,
                 redmine_issue['id'],
-                redmine_prefix_url,
+                redmine_base_url,
                 redmine_issue['id'],
                 redmine_issue['created_on'][:10],
                 creator_text,

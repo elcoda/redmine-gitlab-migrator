@@ -125,10 +125,27 @@ def parse_args():
         help="do not use sudo, use if user is not admin (e.g. gitlab.com)")
 
     parser_issues.add_argument(
+        'redmine_base_url',
+        default='',
+        help="redmine base url to prefix links on migrated tasks")
+
+    # parser_issues.add_argument(
+    #     '--gitlab-project-issues-url',
+    #     action='store_true',
+    #     default=False,
+    #     help="gitlab project url to prefix links referring other redmine taks")
+
+    parser_issues.add_argument(
         '--archive-account', dest='archive_acc',
         required=False,
         default=None,
         help="if account doesn't exist in GitLab use this account as default")
+    
+    parser_issues.add_argument(
+        '--title-suffix', dest='title_sfx',
+        required=False,
+        default=None,
+        help="add a suffix to title, useful when aggregating different projects issues in one megaproject")
 
     parser_pages.add_argument(
         '--gitlab-wiki',
@@ -141,18 +158,7 @@ def parse_args():
         default=False,
         help="do not convert the history")
 
-    parser_pages.add_argument(
-        '--redmine-prefix-url',
-        action='store_true',
-        default=False,
-        help="redmine url to prefix links on migrated tasks")
 
-
-    parser_pages.add_argument(
-        '--gitlab-project-refers-url',
-        action='store_true',
-        default=False,
-        help="gitlab project url to prefix links referring other redmine taks")
 
 
     return parser.parse_args()
@@ -235,13 +241,13 @@ def perform_migrate_issues(args):
     redmine_project = RedmineProject(args.redmine_project_url, redmine)
     gitlab_project = GitlabProject(args.gitlab_project_url, gitlab)
 
-    redmine_prefix_url=''
-    if (args.redmine_prefix_url):
-        redmine_prefix_url = args.redmine_prefix_url
+    redmine_base_url=''
+    if (args.redmine_base_url):
+        redmine_base_url = args.redmine_base_url
 
-    gitlab_project_refers_url=''
-    if (args.gitlab_project_refers_url):
-        gitlab_project_refers_url = args.gitlab_project_refers_url    
+    gitlab_project_issues_url=''
+    if (args.gitlab_project_url):
+        gitlab_project_issues_url = args.gitlab_project_url    
 
 
 
@@ -266,7 +272,7 @@ def perform_migrate_issues(args):
     issues_data = (
         convert_issue(args.redmine_key,
             i, redmine_users_index, gitlab_users_index, milestones_index, closed_states, custom_fields, textile_converter,
-            args.keep_id or args.keep_title, args.sudo, args.archive_acc, redmine_prefix_url, gitlab_project_refers_url)
+            args.keep_id or args.keep_title, args.sudo, args.archive_acc, args.title_sfx, redmine_base_url, gitlab_project_issues_url)
         for i in issues)
 
     # create issues
@@ -307,8 +313,11 @@ def perform_migrate_issues(args):
                 last_iid = created['iid']
                 log.info('#{iid} {title}'.format(**created))
             except:
-                log.info('create issue "{}" failed'.format(data['title']))
-                raise
+                log.error('[D2D:ERROR] create issue "{}" failed'.format(data['title']))
+                #log.error('[D2D:ERROR] create issue "{}" failed: {}'.format(data['title'], str(e)))
+                # Se desideri anche il traceback completo, puoi usare il seguente:
+                #log.error('[D2D:ERROR] Traceback:', exc_info=True)
+                # raise
 
 def perform_migrate_iid(args):
     """ Should occur after the issues migration
