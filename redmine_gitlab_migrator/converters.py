@@ -17,9 +17,7 @@ def load_user_dict(path):
 def redmine_username_to_gitlab_username(redmine_username):
     if user_dict is not None and redmine_username in user_dict:
         return user_dict[redmine_username]
-    
-    log.error('[D2D] redmine_username_to_gitlab_username: not found this redmine_username {}, we can try to remap it'.format(redmine_username))
-
+   
     return redmine_username
 
 
@@ -28,13 +26,11 @@ def redmine_uid_to_gitlab_user(redmine_id, redmine_user_index, gitlab_user_index
 
     # Check if mapping for this user exists
     redmine_login = redmine_username_to_gitlab_username(redmine_login)
-    log.info('[D2D] redmine_uid_to_gitlab_user: first mapping type returned {}'.format(redmine_login))
-
-   
-
+ 
     if not redmine_login in gitlab_user_index:
         redmine_login = 'root'
-        log.info('[D2D] redmine_uid_to_gitlab_user: assigning root to redmine_login {}'.format(redmine_login))
+        
+    log.info('[D2D] redmine_uid_to_gitlab_user: assigning root to redmine_login {} and mapped in gitlab_user_index[redmine_login] {}'.format(redmine_login),gitlab_user_index[redmine_login])
     return gitlab_user_index[redmine_login]
 
 def convert_attachment(redmine_issue_attachment, redmine_api_key):
@@ -123,13 +119,13 @@ def relations_to_string(relations, children, parent_id, issue_id, gitlab_project
     for i in children:
         id = i['id']
         if (gitlab_project_issues_url):
-            l.append("  * {} <a href='{}/-/issues/{}>#{}</a>".format('child',gitlab_project_issues_url, id, id))
+            l.append("  * {} <a href='{}/-/issues/{}'>#{}</a>".format('child',gitlab_project_issues_url, id, id))
         else:
             l.append('  * {} #{}'.format('child', id))
 
     if parent_id > 0:
        if (gitlab_project_issues_url):
-            l.append("  * {} <a href='{}/-/issues/{}>#{}</a>".format('parent',gitlab_project_issues_url, parent_id, parent_id))
+            l.append("  * {} <a href='{}/-/issues/{}'>#{}</a>".format('parent',gitlab_project_issues_url, parent_id, parent_id))
        else:
             l.append('  * {} #{}'.format('parent', parent_id))
 

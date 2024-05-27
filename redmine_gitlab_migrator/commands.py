@@ -316,7 +316,7 @@ def perform_migrate_issues(args):
                 log.error('[D2D:ERROR] create issue "{}" failed'.format(data['title']))
                 #log.error('[D2D:ERROR] create issue "{}" failed: {}'.format(data['title'], str(e)))
                 # Se desideri anche il traceback completo, puoi usare il seguente:
-                #log.error('[D2D:ERROR] Traceback:', exc_info=True)
+                log.error('[D2D:ERROR] Traceback:', exc_info=True)
                 # raise
 
 def perform_migrate_iid(args):
