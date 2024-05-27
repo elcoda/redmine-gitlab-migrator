@@ -222,10 +222,13 @@ def convert_issue(redmine_api_key, redmine_issue, redmine_user_index, gitlab_use
     attachments = redmine_issue.get('attachments', [])
     due_date = redmine_issue.get('due_date', None)
     
+    title_suffix =''
+    if (title_sfx):
+        title_suffix = title_sfx
     if keep_title:
-        title = '{}{}'.format(redmine_issue['subject'],title_sfx)
+        title = '{}{}'.format(redmine_issue['subject'],title_suffix)
     else:
-        title = '-RM-{}-MR-{} {}'.format(redmine_issue['id'], redmine_issue['subject'],title_sfx)
+        title = '-RM-{}-MR-{} {}'.format(redmine_issue['id'], redmine_issue['subject'],title_suffix)
 
     isFromAnonymous = False
     try:
